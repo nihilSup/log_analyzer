@@ -4,9 +4,11 @@
 import sys
 import os
 import argparse
-
 import json
 import logging
+import re
+from datetime import datetime
+from collections import namedtuple
 
 # log_format ui_short '$remote_addr  $remote_user $http_x_real_ip [$time_local] "$request" '
 #                     '$status $body_bytes_sent "$http_referer" '
@@ -28,8 +30,8 @@ def main():
         logging.exception('App init failed', e)
         sys.exit(1)
     logging.info('Started')
-
-
+    files = os.listdir(config['LOG_DIR'])
+    log = find_log(files)
 
 
 def parse_args(def_config):
@@ -48,13 +50,32 @@ def setup_logging(config):
     filename = os.path.join(LOG_DIR, LOG_FILENAME) if LOG_DIR else None
     print(filename)
     os.makedirs(os.path.dirname(filename), exist_ok=True)
-    logging.basicConfig(filename=filename, 
+    logging.basicConfig(filename=filename,
                         format='[%(asctime)s] %(levelname).1s %(message)s',
-                        datefmt='%Y.%m.%d %H:%M:%S', 
+                        datefmt='%Y.%m.%d %H:%M:%S',
                         level=logging.INFO)
 
 
-# some
+LogFile = namedtuple("LogFile", "path, date, ext")
+
+
+def find_log(files):
+    """
+    Finds earliest log file amongst files.
+    log names examples:
+        nginx-access-ui.log-20170630
+        nginx-access-ui.log-20170630.gz
+    """
+    lst = []
+    for f in files:
+        match = re.match(r'nginx-access-ui\.log-(\d{8})(\.gz)?$', f)
+        if match:
+            lst.append(LogFile(match.group(), match.group(1), match.group(2)))
+    if not lst:
+        raise Exception('No available logs')
+    return max(lst, key=lambda l: datetime.strptime(l.date, '%Y%m%d'))
+    # return max([f for f in files
+    #             if re.match(r'nginx-access-ui\.log-(\d{8})(\.gz)?', f)])
 
 
 if __name__ == "__main__":
