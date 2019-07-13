@@ -1,5 +1,4 @@
-.gitignore
 .vscode
 ./log
 ./logs
-./config
+./config/*
