@@ -30,8 +30,19 @@ def main():
         logging.exception('App init failed', e)
         sys.exit(1)
     logging.info('Started')
-    files = os.listdir(config['LOG_DIR'])
-    log = find_log(files)
+    try:
+        files = os.listdir(config['LOG_DIR'])
+        log_file = find_log(files)
+        logging.info(f'Latest log is \n{log_file}')
+        report_name = build_report_name(log_file.date)
+        report_file_path = os.path.join(config['REPORT_DIR'], report_name)
+        if os.path.isfile(report_file_path):
+            logging.info(f'Report file \n{report_file_path}\nalready exists')
+            sys.exit(0)
+
+    except Exception as e:
+        logging.exception('Log proccessing failed', e)
+        sys.exit(2)
 
 
 def parse_args(def_config):
@@ -59,6 +70,10 @@ def setup_logging(config):
 LogFile = namedtuple("LogFile", "path, date, ext")
 
 
+def build_date(string):
+    return datetime.strptime(str(string), '%Y%m%d')
+
+
 def find_log(files):
     """
     Finds earliest log file amongst files.
@@ -70,12 +85,18 @@ def find_log(files):
     for f in files:
         match = re.match(r'nginx-access-ui\.log-(\d{8})(\.gz)?$', f)
         if match:
-            lst.append(LogFile(match.group(), match.group(1), match.group(2)))
+            lst.append(LogFile(match.group(),
+                               build_date(match.group(1)),
+                               match.group(2)))
     if not lst:
         raise Exception('No available logs')
-    return max(lst, key=lambda l: datetime.strptime(l.date, '%Y%m%d'))
+    return max(lst, key=lambda l: l.date)
     # return max([f for f in files
     #             if re.match(r'nginx-access-ui\.log-(\d{8})(\.gz)?', f)])
+
+
+def build_report_name(date):
+    return 'report-{}.html'.format(date.strftime('%Y.%m.%d'))
 
 
 if __name__ == "__main__":
