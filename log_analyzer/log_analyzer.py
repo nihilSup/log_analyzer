@@ -35,7 +35,7 @@ def main():
     logging.info('Started')
     try:
         files = os.listdir(config['LOG_DIR'])
-        log_file = find_log(files, r'nginx-access-ui\.log-(\d{8})(\.gz)?$')
+        log_file = find_log(files)
         logging.info(f'Latest log is \n{log_file}')
         report_name = build_report_name(log_file.date)
         report_file_path = os.path.join(config['REPORT_DIR'], report_name)
@@ -76,20 +76,21 @@ def build_date(string):
     return datetime.strptime(str(string), '%Y%m%d')
 
 
-def find_log(files, pattern):
+def find_log(files):
     """
     Finds earliest log file amongst files.
     log names examples:
         nginx-access-ui.log-20170630
         nginx-access-ui.log-20170630.gz
     """
+    pattern = r'nginx-access-ui\.log-(?P<date>\d{8})(?P<ext>\.gz)?$'
     lst = []
     for f in files:
         match = re.match(pattern, f)
         if match:
             lst.append(LogFile(match.group(),
-                               build_date(match.group(1)),
-                               match.group(2)))
+                               build_date(match.group('date')),
+                               match.group('ext')))
     if not lst:
         raise Exception('No available logs')
     return max(lst, key=lambda l: l.date)
