@@ -2,8 +2,7 @@ import unittest
 
 from datetime import datetime
 
-from log_analyzer.log_analyzer import (find_log, LogFile, build_date,
-                                       report_created)
+from log_analyzer.log_analyzer import (find_log, LogFile, build_date)
 
 
 class TestFindLog(unittest.TestCase):
