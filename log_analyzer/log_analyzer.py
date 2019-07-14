@@ -20,7 +20,8 @@ from string import Template
 config = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "./reports",
-    "LOG_DIR": "./log"
+    "LOG_DIR": "./log",
+    "APP_LOG_FILE": "./log/log_analyzer.log",
 }
 
 
@@ -34,7 +35,7 @@ def main():
     logging.info('Started')
     try:
         files = os.listdir(config['LOG_DIR'])
-        log_file = find_log(files)
+        log_file = find_log(files, r'nginx-access-ui\.log-(\d{8})(\.gz)?$')
         logging.info(f'Latest log is \n{log_file}')
         report_name = build_report_name(log_file.date)
         report_file_path = os.path.join(config['REPORT_DIR'], report_name)
@@ -49,7 +50,8 @@ def main():
 
 def parse_args(def_config):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str)
+    parser.add_argument('--config', type=str, help='path to config file',
+                        default='./config.json')
     args = parser.parse_args()
     if args.config:
         with open(args.config) as json_config:
@@ -58,12 +60,10 @@ def parse_args(def_config):
 
 
 def setup_logging(config):
-    LOG_FILENAME = 'log_analyzer.log'
-    LOG_DIR = config['LOG_DIR']
-    filename = os.path.join(LOG_DIR, LOG_FILENAME) if LOG_DIR else None
-    print(filename)
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    logging.basicConfig(filename=filename,
+    log_file_path = config.get("APP_LOG_FILE", None)
+    if log_file_path:
+        os.makedirs(log_file_path, exist_ok=True)
+    logging.basicConfig(filename=log_file_path,
                         format='[%(asctime)s] %(levelname).1s %(message)s',
                         datefmt='%Y.%m.%d %H:%M:%S',
                         level=logging.INFO)
@@ -76,7 +76,7 @@ def build_date(string):
     return datetime.strptime(str(string), '%Y%m%d')
 
 
-def find_log(files):
+def find_log(files, pattern):
     """
     Finds earliest log file amongst files.
     log names examples:
@@ -85,7 +85,7 @@ def find_log(files):
     """
     lst = []
     for f in files:
-        match = re.match(r'nginx-access-ui\.log-(\d{8})(\.gz)?$', f)
+        match = re.match(pattern, f)
         if match:
             lst.append(LogFile(match.group(),
                                build_date(match.group(1)),
