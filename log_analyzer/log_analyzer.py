@@ -42,7 +42,11 @@ def main():
         if os.path.isfile(report_file_path):
             logging.info(f'Report file \n{report_file_path}\nalready exists')
             sys.exit(0)
-        # create_report(log_parser(log_file))
+        log_data = read_log_file(log_file, config['LOG_DIR'])
+        logging.info('Starting log parsing.')
+        pattern = build_nginx_log_regexp()
+        parsed_log = parse_log(log_data, pattern)
+        report = create_report(parsed_log)
     except Exception as e:
         logging.exception('Log proccessing failed', e)
         sys.exit(2)
@@ -78,7 +82,7 @@ def build_date(string):
 
 def find_log(files):
     """
-    Finds earliest log file amongst files.
+    Finds latest log file amongst files.
     log names examples:
         nginx-access-ui.log-20170630
         nginx-access-ui.log-20170630.gz
@@ -94,6 +98,7 @@ def find_log(files):
     if not lst:
         raise Exception('No available logs')
     return max(lst, key=lambda l: l.date)
+    # lexigraphical check
     # return max([f for f in files
     #             if re.match(r'nginx-access-ui\.log-(\d{8})(\.gz)?', f)])
 
@@ -123,34 +128,49 @@ def build_nginx_log_regexp(groups=None):
         str: regexp string
     """
     _groups = {
-        'remote_addr': r'(?P<remote_addr>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
-        'remote_user': r'(?P<remote_user>\S+)',
-        'http_x_real_ip': r'(?P<http_x_real_ip>\S+)',
-        'time_local': r'(?P<time_local>\d{2}\/[a-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2} (\+|\-)\d{4})',
-        'request': r'(((GET|POST) )(?P<url>.+)(http\/1\.1))',  # r'(?P<request>.*?)',
-        'status': r'(?P<status>\d{3})',
-        'body_bytes_sent': r'(?P<body_bytes_sent>\d+)',
-        'http_referer': r'(?P<http_referer>\S+)',
-        'http_user_agent': r'(?P<http_user_agent>.+?)',
+        'remote_addr':          r'(?P<remote_addr>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
+        'remote_user':          r'(?P<remote_user>\S+)',
+        'http_x_real_ip':       r'(?P<http_x_real_ip>\S+)',
+        'time_local':           r'(?P<time_local>\d{2}\/[a-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2} (\+|\-)\d{4})',
+        'request':              r'(((GET|POST) )(?P<url>.+)(http\/1\.1))',  # r'(?P<request>.*?)',
+        'status':               r'(?P<status>\d{3})',
+        'body_bytes_sent':      r'(?P<body_bytes_sent>\d+)',
+        'http_referer':         r'(?P<http_referer>\S+)',
+        'http_user_agent':      r'(?P<http_user_agent>.+?)',
         'http_x_forwarded_for': r'(?P<http_x_forwarded_for>\S+)',
-        'http_X_REQUEST_ID': r'(?P<http_X_REQUEST_ID>(\-)|([\w\d-]+))',
-        'http_X_RB_USER': r'(?P<http_X_RB_USER>(\-)|([\w\d]+))',
-        'request_time': r'(?P<request_time>\d+\.\d+)',
+        'http_X_REQUEST_ID':    r'(?P<http_X_REQUEST_ID>(\-)|([\w\d-]+))',
+        'http_X_RB_USER':       r'(?P<http_X_RB_USER>(\-)|([\w\d]+))',
+        'request_time':         r'(?P<request_time>\d+\.\d+)',
     }
     if groups:
         _groups.update(groups)
 
     t = Template(r'$remote_addr $remote_user\s+$http_x_real_ip '
                  r'\[$time_local\] \"$request\" $status $body_bytes_sent '
-                 r'\"$http_referer\" \"$http_user_agent\" \"$http_x_forwarded_for\" '
-                 r'\"$http_X_REQUEST_ID\" \"$http_X_RB_USER\" $request_time\s*')
+                 r'\"$http_referer\" \"$http_user_agent\" '
+                 r'\"$http_x_forwarded_for\" \"$http_X_REQUEST_ID\" '
+                 r'\"$http_X_RB_USER\" $request_time\s*')
     return t.substitute(**_groups)
 
 
-def parse_log(lines, pattern_builder=build_nginx_log_regexp):
+def parse_log(log_lines, pattern, treshold=0.6):
+    p = re.compile(pattern, re.IGNORECASE)
+    tot_ln_count = 0
+    corr_ln_count = 0
+    for line in log_lines:
+        tot_ln_count += 1
+        res = re.search(p, line)
+        if res:
+            corr_ln_count += 1
+            yield res.groupdict()
+    if corr_ln_count / tot_ln_count < treshold:
+        raise Exception(f'Successfully parsed rate lower than {treshold}')
+
+
+def create_report(log_lines):
     # TODO: implement
-    for line in lines:
-        pass
+    pass
+
 
 if __name__ == "__main__":
     main()
