@@ -8,20 +8,17 @@ import json
 import logging
 import re
 from datetime import datetime
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import gzip
 from string import Template
-
-# log_format ui_short '$remote_addr  $remote_user $http_x_real_ip [$time_local] "$request" '
-#                     '$status $body_bytes_sent "$http_referer" '
-#                     '"$http_user_agent" "$http_x_forwarded_for" "$http_X_REQUEST_ID" "$http_X_RB_USER" '
-#                     '$request_time';
+from statistics import median
 
 config = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "./reports",
     "LOG_DIR": "./log",
     "APP_LOG_FILE": "./log/log_analyzer.log",
+    "REPORT_TEMPLATE": "./report.html",
 }
 
 
@@ -46,7 +43,9 @@ def main():
         logging.info('Starting log parsing.')
         pattern = build_nginx_log_regexp()
         parsed_log = parse_log(log_data, pattern)
-        report = create_report(parsed_log)
+        report = create_report(parsed_log, config['REPORT_SIZE'])
+        logging.info('Report created, writing to disk')
+        save_report(report, report_file_path, config['REPORT_TEMPLATE'])
     except Exception as e:
         logging.exception('Log proccessing failed', e)
         sys.exit(2)
@@ -163,14 +162,44 @@ def parse_log(log_lines, pattern, treshold=0.6):
         if res:
             corr_ln_count += 1
             yield res.groupdict()
-    if corr_ln_count / tot_ln_count < treshold:
-        raise Exception(f'Successfully parsed rate lower than {treshold}')
+    parsed_rate = corr_ln_count / tot_ln_count
+    logging.info(f'Parsed rate is {parsed_rate}')
+    if parsed_rate < treshold:
+        raise Exception(f'Parsed rate lower than {treshold}')
 
 
-def create_report(log_lines):
-    # TODO: implement
+def create_report(log_parsed_data, size=None):
+    if size:
+        size = int(size)
+    urls_reqs = defaultdict(list)
+    tot_count, tot_req_time = 0, 0.0
+    for data in log_parsed_data:
+        req_time = float(data['request_time'])
+        tot_count += 1
+        tot_req_time += req_time
+        urls_reqs[data['url']].append(req_time)
+    report_data = []
+    for url, reqs in urls_reqs.items():
+        url_stats = {
+            'url': url,
+            'count': len(reqs),
+            'time_sum': sum(reqs),
+            'time_max': max(reqs),
+            'time_med': median(reqs),
+        }
+        url_stats.update({
+            'count_perc': round(100 * url_stats['count'] / tot_count, 3),
+            'time_perc': round(100 * url_stats['time_sum'] / tot_req_time, 3),
+            'time_avg': round(url_stats['time_sum'] / len(reqs), 3),
+        })
+        report_data.append(url_stats)
+    res = sorted(report_data, key=lambda dct: dct['time_sum'], reverse=True)
+    return res[:size]
+
+
+def save_report(report, path, path_to_template):
+    # TODO: Implement
     pass
-
 
 if __name__ == "__main__":
     main()

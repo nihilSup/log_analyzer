@@ -3,7 +3,38 @@ from datetime import datetime
 import re
 
 from log_analyzer.log_analyzer import (find_log, LogFile, build_date,
-                                       build_nginx_log_regexp, parse_log)
+                                       build_nginx_log_regexp, parse_log,
+                                       create_report)
+
+
+class TestCreateReport(unittest.TestCase):
+    def setUp(self):
+        self.parsed_log = [
+            dict(url='some_url', request_time=0.5),
+            dict(url='some_url', request_time=1.5),
+            dict(url='some_url', request_time='0.1'),
+            dict(url='other_url', request_time='2.1'),
+            dict(url='another_url', request_time='0'),
+        ]
+        self.empty_log = []
+
+    def test_correct_report(self):
+        report = create_report(self.parsed_log)
+        self.assertIsNotNone(report)
+        self.assertEqual(len(report), 3)
+        url = [r for r in report if r['url'] == 'some_url'][0]
+        self.assertEqual(url['count'], 3)
+        self.assertEqual(url['time_sum'], 2.1)
+        self.assertEqual(url['count_perc'], 100 * 3 / 5)
+        self.assertEqual(url['time_perc'], 100 * 0.5)
+
+    def test_empty_log(self):
+        report = create_report(self.empty_log)
+
+    def test_log_size(self):
+        size = 2
+        report = create_report(self.parsed_log, size)
+        self.assertEqual(len(report), size)
 
 
 class TestParseLog(unittest.TestCase):
@@ -30,21 +61,33 @@ class TestParseLog(unittest.TestCase):
 
 
 class TestBuildNginxLogRegexp(unittest.TestCase):
+    def setUp(self):
+        self.good_line = (
+            '1.196.116.32 -  - [29/Jun/2017:03:50:22 +0300] '
+            '"GET /api/v2/banner/25019354 HTTP/1.1" 200 927 "-" '
+            '"Lynx/2.8.8dev.9 libwww-FM/2.14 SSL-MM/1.4.1 GNUTLS/2.10.5" '
+            '"-" "1498697422-2190034393-4708-9752759" "dc7161be3" 0.390\n')
+        self.bad_line = (
+            '1.196.116.32 -  - [29/Jun/2017:03:50:22 +0300] '
+            '"GET /api/v2/banner/25019354 HTTP/1.1" 200 927 "-" '
+            '"Lynx/2.8.8dev.9 libwww-FM/2.14 SSL-MM/1.4.1 GNUTLS/2.10.5" '
+            '"-" "1498697422-2190034393-4708-9752759" 0.390\n'
+        )
+        self.pattern = pattern = build_nginx_log_regexp()
+
     def test_pattern_match(self):
-        pattern = build_nginx_log_regexp()
-        # pattern = re.compile(pattern_str)
-        log_line = ('1.196.116.32 -  - [29/Jun/2017:03:50:22 +0300] '
-                    '"GET /api/v2/banner/25019354 HTTP/1.1" 200 927 "-" '
-                    '"Lynx/2.8.8dev.9 libwww-FM/2.14 SSL-MM/1.4.1 GNUTLS/2.10.5" '
-                    '"-" "1498697422-2190034393-4708-9752759" "dc7161be3" 0.390\n')
-        res = re.search(pattern, log_line, re.IGNORECASE)
+        res = re.search(self.pattern, self.good_line, re.IGNORECASE)
         self.assertIsNotNone(res)
-        log_line = ('1.196.116.32 -  - [29/Jun/2017:03:50:22 +0300] '
-                    '"GET /api/v2/banner/25019354 HTTP/1.1" 200 927 "-" '
-                    '"Lynx/2.8.8dev.9 libwww-FM/2.14 SSL-MM/1.4.1 GNUTLS/2.10.5" '
-                    '"-" "1498697422-2190034393-4708-9752759" 0.390\n')
-        res = re.search(pattern, log_line, re.IGNORECASE)
+        res = re.search(self.pattern, self.bad_line, re.IGNORECASE)
         self.assertIsNone(res)
+
+    def test_fields_presence(self):
+        res = re.search(self.pattern, self.good_line, re.IGNORECASE)
+        res_dct = res.groupdict()
+        self.assertTrue(
+            all(key in res_dct for key in ['url', 'request_time'])
+        )
+        print(res_dct['url'], res_dct['request_time'])
 
 
 class TestFindLog(unittest.TestCase):
