@@ -111,16 +111,14 @@ class TestFindLog(unittest.TestCase):
 
     def test_empty_files(self):
         files = []
-        with self.assertRaises(Exception):
-            find_log(files)
+        self.assertIsNone(find_log(files))
 
     def test_empty_matches(self):
         files = [
             'aaa',
             'bbb',
         ]
-        with self.assertRaises(Exception):
-            find_log(files)
+        self.assertIsNone(find_log(files))
 
 
 if __name__ == "__main__":

@@ -33,6 +33,9 @@ def main():
     try:
         files = os.listdir(config['LOG_DIR'])
         log_file = find_log(files)
+        if not log_file:
+            logging.info('No available logs to process')
+            sys.exit(0)
         logging.info(f'Latest log is \n{log_file}')
         report_name = build_report_name(log_file.date)
         report_file_path = os.path.join(config['REPORT_DIR'], report_name)
@@ -95,7 +98,7 @@ def find_log(files):
                                build_date(match.group('date')),
                                match.group('ext')))
     if not lst:
-        raise Exception('No available logs')
+        return None
     return max(lst, key=lambda l: l.date)
     # lexigraphical check
     # return max([f for f in files
