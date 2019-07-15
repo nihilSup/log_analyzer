@@ -12,6 +12,7 @@ from collections import namedtuple, defaultdict
 import gzip
 from string import Template
 from statistics import median
+from functools import partial
 
 config = {
     "REPORT_SIZE": 1000,
@@ -115,8 +116,9 @@ def build_report_name(date):
 
 def read_log_file(log_file, dir_path):
     file_path = os.path.join(dir_path, log_file.path)
+    # TODO: think about moving openers to global and pass by argument
     openers = {
-        '.gz': gzip.open,
+        '.gz': partial(gzip.open, mode='rt', encoding='UTF-8'),
     }
     with openers.get(log_file.ext, open)(file_path) as f:
         for line in f:
