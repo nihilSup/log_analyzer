@@ -17,7 +17,7 @@ config = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "./reports",
     "LOG_DIR": "./log",
-    "APP_LOG_FILE": "./log/log_analyzer.log",
+    "APP_LOG_FILE": "./app_logs/log_analyzer.log",
     "REPORT_TEMPLATE": "./report.html",
 }
 
@@ -29,14 +29,15 @@ def main():
     except Exception as e:
         logging.exception('App init failed', e)
         sys.exit(1)
-    logging.info('Started')
+    logging.info('App started')
     try:
-        files = os.listdir(config['LOG_DIR'])
+        # TODO: Add check for regular file
+        files = [f for f in os.listdir(config['LOG_DIR'])]
         log_file = find_log(files)
         if not log_file:
-            logging.info('No available logs to process')
+            logging.info('No available logs to process. Exiting')
             sys.exit(0)
-        logging.info(f'Latest log is \n{log_file}')
+        logging.info(f'Latest log is \n{log_file.path}')
         report_name = build_report_name(log_file.date)
         report_file_path = os.path.join(config['REPORT_DIR'], report_name)
         if os.path.isfile(report_file_path):
@@ -48,9 +49,12 @@ def main():
         parsed_log = parse_log(log_data, pattern)
         report = create_report(parsed_log, config['REPORT_SIZE'])
         logging.info('Report created, writing to disk')
-        save_report(report, report_file_path, config['REPORT_TEMPLATE'])
+        with open(config['REPORT_TEMPLATE']) as tmplt_file:
+            tmplt = tmplt_file.read()
+        save_report(report, report_file_path, tmplt)
+        logging.info('Finshed processing')
     except Exception as e:
-        logging.exception('Log proccessing failed', e)
+        logging.exception('Log processing failed', e)
         sys.exit(2)
 
 
@@ -68,7 +72,7 @@ def parse_args(def_config):
 def setup_logging(config):
     log_file_path = config.get("APP_LOG_FILE", None)
     if log_file_path:
-        os.makedirs(log_file_path, exist_ok=True)
+        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
     logging.basicConfig(filename=log_file_path,
                         format='[%(asctime)s] %(levelname).1s %(message)s',
                         datefmt='%Y.%m.%d %H:%M:%S',
@@ -112,10 +116,9 @@ def build_report_name(date):
 def read_log_file(log_file, dir_path):
     file_path = os.path.join(dir_path, log_file.path)
     openers = {
-        '': open,
         '.gz': gzip.open,
     }
-    with openers[log_file.ext]() as f:
+    with openers.get(log_file.ext, open)(file_path) as f:
         for line in f:
             yield line
 
@@ -146,7 +149,7 @@ def build_nginx_log_regexp(groups=None):
     }
     if groups:
         _groups.update(groups)
-
+    # TODO: add as argument with default
     t = Template(r'$remote_addr $remote_user\s+$http_x_real_ip '
                  r'\[$time_local\] \"$request\" $status $body_bytes_sent '
                  r'\"$http_referer\" \"$http_user_agent\" '
@@ -156,6 +159,10 @@ def build_nginx_log_regexp(groups=None):
 
 
 def parse_log(log_lines, pattern, treshold=0.6):
+    """
+    Transforms every line to pattern's groupdict if line matchs pattern,
+    else skips line. Raises exception if conversion rate is lower then treshold
+    """
     p = re.compile(pattern, re.IGNORECASE)
     tot_ln_count = 0
     corr_ln_count = 0
@@ -165,13 +172,16 @@ def parse_log(log_lines, pattern, treshold=0.6):
         if res:
             corr_ln_count += 1
             yield res.groupdict()
+        if tot_ln_count % 100000 == 0:
+            logging.info(f'Parsed {tot_ln_count} lines')
     parsed_rate = corr_ln_count / tot_ln_count
     logging.info(f'Parsed rate is {parsed_rate}')
     if parsed_rate < treshold:
+        # TODO: add precision to 2 digits
         raise Exception(f'Parsed rate lower than {treshold}')
 
 
-def create_report(log_parsed_data, size=None):
+def create_report(log_parsed_data, size=None, prec=3):
     if size:
         size = int(size)
     urls_reqs = defaultdict(list)
@@ -186,23 +196,26 @@ def create_report(log_parsed_data, size=None):
         url_stats = {
             'url': url,
             'count': len(reqs),
-            'time_sum': sum(reqs),
-            'time_max': max(reqs),
-            'time_med': median(reqs),
+            'time_sum': round(sum(reqs), prec),
+            'time_max': round(max(reqs), prec),
+            'time_med': round(median(reqs), prec),
         }
         url_stats.update({
-            'count_perc': round(100 * url_stats['count'] / tot_count, 3),
-            'time_perc': round(100 * url_stats['time_sum'] / tot_req_time, 3),
-            'time_avg': round(url_stats['time_sum'] / len(reqs), 3),
+            'count_perc': round(100 * url_stats['count'] / tot_count, prec),
+            'time_perc': round(100 * url_stats['time_sum'] / tot_req_time, prec),
+            'time_avg': round(url_stats['time_sum'] / len(reqs), prec),
         })
         report_data.append(url_stats)
     res = sorted(report_data, key=lambda dct: dct['time_sum'], reverse=True)
     return res[:size]
 
 
-def save_report(report, path, path_to_template):
-    # TODO: Implement
-    pass
+def save_report(report, path, tmplt):
+    report = tmplt.replace('$table_json', json.dumps(report))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as report_file:
+        report_file.write(report)
+
 
 if __name__ == "__main__":
     main()
