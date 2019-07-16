@@ -133,7 +133,7 @@ def build_nginx_log_regexp(groups=None):
         'remote_user':          r'(?P<remote_user>\S+)',
         'http_x_real_ip':       r'(?P<http_x_real_ip>\S+)',
         'time_local':           r'(?P<time_local>\d{2}\/[a-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2} (\+|\-)\d{4})',
-        'request':              r'(((GET|POST) )(?P<url>.+)(http\/1\.1))',  # r'(?P<request>.*?)',
+        'request':              r'(((GET|POST) )(?P<url>.+)(http\/1\.1))',
         'status':               r'(?P<status>\d{3})',
         'body_bytes_sent':      r'(?P<body_bytes_sent>\d+)',
         'http_referer':         r'(?P<http_referer>\S+)',
