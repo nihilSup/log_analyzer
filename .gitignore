@@ -2,4 +2,10 @@
 *.log
 ./logs
 config/*
-**/__pycache__/**
+__pycache__/
+*.pyc
+*.log
+.env
+.venv
+env/
+venv/
