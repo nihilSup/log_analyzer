@@ -83,11 +83,7 @@ def setup_logging(config):
 LogFile = namedtuple("LogFile", "path, date, ext")
 
 
-def build_date(string):
-    return datetime.strptime(str(string), '%Y%m%d')
-
-
-def find_log(files):
+def find_log(log_files):
     """
     Finds latest log file amongst files.
     log names examples:
@@ -95,19 +91,17 @@ def find_log(files):
         nginx-access-ui.log-20170630.gz
     """
     pattern = r'nginx-access-ui\.log-(?P<date>\d{8})(?P<ext>\.gz)?$'
-    lst = []
-    for f in files:
+    matches = []
+    for f in log_files:
         match = re.match(pattern, f)
         if match:
-            lst.append(LogFile(match.group(),
-                               build_date(match.group('date')),
-                               match.group('ext')))
-    if not lst:
+            log_file = LogFile(match.group(),
+                               datetime.strptime(match.group('date'), '%Y%m%d'),
+                               match.group('ext'))
+            matches.append(log_file)
+    if not matches:
         return None
-    return max(lst, key=lambda l: l.date)
-    # lexigraphical check
-    # return max([f for f in files
-    #             if re.match(r'nginx-access-ui\.log-(\d{8})(\.gz)?', f)])
+    return max(matches, key=lambda l: l.date)
 
 
 def build_report_name(date):
@@ -116,11 +110,11 @@ def build_report_name(date):
 
 def read_log_file(log_file, dir_path):
     file_path = os.path.join(dir_path, log_file.path)
-    # TODO: think about moving openers to global and pass by argument
     openers = {
+        None: open,
         '.gz': partial(gzip.open, mode='rt', encoding='UTF-8'),
     }
-    with openers.get(log_file.ext, open)(file_path) as f:
+    with openers[log_file.ext](file_path) as f:
         for line in f:
             yield line
 
@@ -177,10 +171,9 @@ def parse_log(log_lines, pattern, treshold=0.6):
         if tot_ln_count % 100000 == 0:
             logging.info(f'Parsed {tot_ln_count} lines')
     parsed_rate = corr_ln_count / tot_ln_count
-    logging.info(f'Parsed rate is {parsed_rate}')
+    logging.info(f'Parsed rate is {parsed_rate:.2f}')
     if parsed_rate < treshold:
-        # TODO: add precision to 2 digits
-        raise Exception(f'Parsed rate lower than {treshold}')
+        raise Exception(f'Parsed rate lower than {treshold:.2f}')
 
 
 def create_report(log_parsed_data, size=None, prec=3):
