@@ -91,7 +91,7 @@ def find_log(log_files):
             try:
                 dt = datetime.strptime(match.group('date'), '%Y%m%d')
             except ValueError as ve:
-                logging.exception(ve)
+                logging.exception("Incorrect date format, skipping", ve)
                 continue
             log_file = LogFile(match.group(),
                                dt,
