@@ -24,40 +24,32 @@ config = {
 
 
 def main():
-    try:
-        parse_args(config)
-        setup_logging(config)
-    except Exception as e:
-        logging.exception('App init failed', e)
-        sys.exit(1)
+    parse_args(config)
+    setup_logging(config)
     logging.info('App started')
-    try:
-        log_dir = config['LOG_DIR']
-        files = [f for f in os.listdir(log_dir)]
-        log_file = find_log(files)
-        if not log_file:
-            logging.info('No available logs to process. Exiting')
-            sys.exit(0)
-        logging.info(f'Latest log is \n{log_file.path}')
-        report_dt = log_file.date.strftime('%Y.%m.%d')
-        report_name = 'report-{}.html'.format(report_dt)
-        report_file_path = os.path.join(config['REPORT_DIR'], report_name)
-        if os.path.isfile(report_file_path):
-            logging.info(f'Report file \n{report_file_path}\nalready exists')
-            sys.exit(0)
-        log_data = read_log_file(log_file, log_dir)
-        logging.info('Starting log parsing.')
-        pattern = build_nginx_log_regexp()
-        parsed_log = parse_log(log_data, pattern)
-        report = create_report(parsed_log, config['REPORT_SIZE'])
-        logging.info('Report created, writing to disk')
-        with open(config['REPORT_TEMPLATE']) as tmplt_file:
-            tmplt = tmplt_file.read()
-        save_report(report, report_file_path, tmplt)
-        logging.info('Finshed processing')
-    except Exception as e:
-        logging.exception('Log processing failed', e)
-        sys.exit(2)
+    log_dir = config['LOG_DIR']
+    files = [f for f in os.listdir(log_dir)]
+    log_file = find_log(files)
+    if not log_file:
+        logging.info('No available logs to process. Exiting')
+        sys.exit(0)
+    logging.info(f'Latest log is \n{log_file.path}')
+    report_dt = log_file.date.strftime('%Y.%m.%d')
+    report_name = 'report-{}.html'.format(report_dt)
+    report_file_path = os.path.join(config['REPORT_DIR'], report_name)
+    if os.path.isfile(report_file_path):
+        logging.info(f'Report file \n{report_file_path}\nalready exists')
+        sys.exit(0)
+    log_data = read_log_file(log_file, log_dir)
+    logging.info('Starting log parsing.')
+    pattern = build_nginx_log_regexp()
+    parsed_log = parse_log(log_data, pattern)
+    report = create_report(parsed_log, config['REPORT_SIZE'])
+    logging.info('Report created, writing to disk')
+    with open(config['REPORT_TEMPLATE']) as tmplt_file:
+        tmplt = tmplt_file.read()
+    save_report(report, report_file_path, tmplt)
+    logging.info('Finshed processing')
 
 
 def parse_args(def_config):
@@ -215,4 +207,8 @@ def save_report(report, path, tmplt):
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logging.exception('Log processing failed', e)
+        sys.exit(1)
