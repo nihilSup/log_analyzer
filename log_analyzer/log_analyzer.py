@@ -32,19 +32,20 @@ def main():
         sys.exit(1)
     logging.info('App started')
     try:
-        # TODO: Add check for regular file
-        files = [f for f in os.listdir(config['LOG_DIR'])]
+        log_dir = config['LOG_DIR']
+        files = [f for f in os.listdir(log_dir)]
         log_file = find_log(files)
         if not log_file:
             logging.info('No available logs to process. Exiting')
             sys.exit(0)
         logging.info(f'Latest log is \n{log_file.path}')
-        report_name = build_report_name(log_file.date)
+        report_dt = log_file.date.strftime('%Y.%m.%d')
+        report_name = 'report-{}.html'.format(report_dt)
         report_file_path = os.path.join(config['REPORT_DIR'], report_name)
         if os.path.isfile(report_file_path):
             logging.info(f'Report file \n{report_file_path}\nalready exists')
             sys.exit(0)
-        log_data = read_log_file(log_file, config['LOG_DIR'])
+        log_data = read_log_file(log_file, log_dir)
         logging.info('Starting log parsing.')
         pattern = build_nginx_log_regexp()
         parsed_log = parse_log(log_data, pattern)
@@ -95,17 +96,18 @@ def find_log(log_files):
     for f in log_files:
         match = re.match(pattern, f)
         if match:
+            try:
+                dt = datetime.strptime(match.group('date'), '%Y%m%d')
+            except ValueError as ve:
+                logging.exception(ve)
+                continue
             log_file = LogFile(match.group(),
-                               datetime.strptime(match.group('date'), '%Y%m%d'),
+                               dt,
                                match.group('ext'))
             matches.append(log_file)
     if not matches:
         return None
     return max(matches, key=lambda l: l.date)
-
-
-def build_report_name(date):
-    return 'report-{}.html'.format(date.strftime('%Y.%m.%d'))
 
 
 def read_log_file(log_file, dir_path):

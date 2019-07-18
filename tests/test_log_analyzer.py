@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime
 import re
 
-from log_analyzer.log_analyzer import (find_log, LogFile, build_date,
+from log_analyzer.log_analyzer import (find_log, LogFile,
                                        build_nginx_log_regexp, parse_log,
                                        create_report)
 
@@ -104,9 +104,10 @@ class TestFindLog(unittest.TestCase):
             'nginx-access-ui.log-20190530.bzz',
             'nginx-access-ui.log-390630.bz',
             'nginx-access-ui.log-201907301111.bz'
+            'nginx-access-ui.log-99999999'
         ]
         corerct_log = LogFile('nginx-access-ui.log-20170630',
-                              build_date('20170630'), None)
+                              datetime(year=2017, month=6, day=30), None)
         self.assertEqual(find_log(files), corerct_log)
 
     def test_empty_files(self):
