@@ -26,7 +26,9 @@ LogFile = namedtuple("LogFile", "path, date, ext")
 
 
 def main():
-    fin_config = parse_args(config)
+    args = parse_args(config)
+    with open(args.config) as json_config:
+        fin_config = {**config, **json.load(json_config)}
     setup_logging(fin_config)
     logging.info('App started')
     log_dir = fin_config['LOG_DIR']
@@ -57,10 +59,7 @@ def parse_args(def_config):
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, help='path to config file',
                         default='./config.json')
-    args = parser.parse_args()
-    with open(args.config) as json_config:
-        new_config = json.load(json_config)
-        return {**def_config, **new_config}
+    return parser.parse_args()
 
 
 def setup_logging(config):
