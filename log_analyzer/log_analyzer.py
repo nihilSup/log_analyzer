@@ -22,21 +22,22 @@ config = {
     "REPORT_TEMPLATE": "./report.html",
 }
 
+LogFile = namedtuple("LogFile", "path, date, ext")
+
 
 def main():
-    parse_args(config)
-    setup_logging(config)
+    fin_config = parse_args(config)
+    setup_logging(fin_config)
     logging.info('App started')
-    log_dir = config['LOG_DIR']
-    files = [f for f in os.listdir(log_dir)]
-    log_file = find_log(files)
+    log_dir = fin_config['LOG_DIR']
+    log_file = find_log(f for f in os.listdir(log_dir))
     if not log_file:
         logging.info('No available logs to process. Exiting')
         sys.exit(0)
     logging.info(f'Latest log is \n{log_file.path}')
     report_dt = log_file.date.strftime('%Y.%m.%d')
     report_name = 'report-{}.html'.format(report_dt)
-    report_file_path = os.path.join(config['REPORT_DIR'], report_name)
+    report_file_path = os.path.join(fin_config['REPORT_DIR'], report_name)
     if os.path.isfile(report_file_path):
         logging.info(f'Report file \n{report_file_path}\nalready exists')
         sys.exit(0)
@@ -44,9 +45,9 @@ def main():
     logging.info('Starting log parsing.')
     pattern = build_nginx_log_regexp()
     parsed_log = parse_log(log_data, pattern)
-    report = create_report(parsed_log, config['REPORT_SIZE'])
+    report = create_report(parsed_log, fin_config['REPORT_SIZE'])
     logging.info('Report created, writing to disk')
-    with open(config['REPORT_TEMPLATE']) as tmplt_file:
+    with open(fin_config['REPORT_TEMPLATE']) as tmplt_file:
         tmplt = tmplt_file.read()
     save_report(report, report_file_path, tmplt)
     logging.info('Finshed processing')
@@ -57,10 +58,9 @@ def parse_args(def_config):
     parser.add_argument('--config', type=str, help='path to config file',
                         default='./config.json')
     args = parser.parse_args()
-    if args.config:
-        with open(args.config) as json_config:
-            new_config = json.load(json_config)
-            def_config.update(dict(new_config))
+    with open(args.config) as json_config:
+        new_config = json.load(json_config)
+        return {**def_config, **new_config}
 
 
 def setup_logging(config):
@@ -71,9 +71,6 @@ def setup_logging(config):
                         format='[%(asctime)s] %(levelname).1s %(message)s',
                         datefmt='%Y.%m.%d %H:%M:%S',
                         level=logging.INFO)
-
-
-LogFile = namedtuple("LogFile", "path, date, ext")
 
 
 def find_log(log_files):
