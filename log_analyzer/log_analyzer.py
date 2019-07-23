@@ -32,7 +32,7 @@ def main():
     setup_logging(fin_config)
     logging.info('App started')
     log_dir = fin_config['LOG_DIR']
-    log_file = find_log(f for f in os.listdir(log_dir))
+    log_file = find_log(os.listdir(log_dir))
     if not log_file:
         logging.info('No available logs to process. Exiting')
         sys.exit(0)
